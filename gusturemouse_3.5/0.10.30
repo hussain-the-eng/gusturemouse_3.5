@@ -1,0 +1,4 @@
+Requirement already satisfied: mediapipe in c:\users\sniper\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (0.10.33)
+Requirement already satisfied: opencv-python in c:\users\sniper\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (4.13.0.92)
+Requirement already satisfied: numpy in c:\users\sniper\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (2.4.3)
+Requirement already satisfied: flask in c:\users\sniper\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (3.1.3)

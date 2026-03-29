@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GestureMouse 2.0 — Cursor</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050810;--panel:#0a0f1e;--border:#1a2a4a;--accent:#00e5ff;--red:#ff4d6d;--green:#7fff6b;--text:#c8d8f0;--dim:#4a6080}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.w{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:22px 18px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',sans-serif;font-size:1.5rem;font-weight:900;letter-spacing:.08em;color:var(--accent);text-shadow:0 0 12px #00e5ff66}
+.logo em{color:var(--red);font-style:normal}
+.badge{background:var(--border);border:1px solid var(--accent);color:var(--accent);font-size:.6rem;padding:2px 7px;border-radius:3px;margin-left:8px;letter-spacing:.1em}
+.conn{display:flex;align-items:center;gap:10px;font-size:.7rem;color:var(--dim)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--dim);transition:all .3s}
+.dot.on{background:var(--green);animation:pulse 2s infinite}
+.dot.err{background:var(--red)}
+@keyframes pulse{0%,100%{box-shadow:0 0 4px var(--green)}50%{box-shadow:0 0 14px var(--green)}}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:14px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px;position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5}
+.pt{font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.vwrap{position:relative;aspect-ratio:4/3;background:#000;border-radius:4px;overflow:hidden}
+#canvas{width:100%;height:100%;display:block}
+.vborder{position:absolute;inset:0;border:2px solid transparent;border-radius:4px;pointer-events:none;transition:border-color .3s}
+.vborder.on{border-color:var(--accent);box-shadow:inset 0 0 18px #00e5ff18}
+.hud{position:absolute;bottom:8px;left:8px;display:flex;gap:7px;z-index:2}
+.chip{background:#000000bb;border:1px solid var(--border);border-radius:3px;padding:2px 7px;font-size:.62rem}
+.chip b{color:var(--accent)}
+.omsg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#000d;font-size:.8rem;color:var(--dim);text-align:center;padding:18px;z-index:3}
+.oi{font-size:2rem;opacity:.4}
+.lbw{height:3px;background:#0d1525;border-radius:2px;margin-bottom:8px;overflow:hidden}
+.lb{height:100%;width:0%;background:linear-gradient(90deg,var(--red),var(--accent));transition:width .3s;border-radius:2px}
+.fpsbw{background:#0d1525;border:1px solid var(--border);border-radius:3px;height:5px;margin-top:7px;overflow:hidden}
+.fpsb{height:100%;background:linear-gradient(90deg,var(--red),var(--accent),var(--green));transition:width .5s;border-radius:3px}
+.btn{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.78rem;letter-spacing:.06em;cursor:pointer;transition:all .2s;text-align:left;display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:#00e5ff0a}
+.btn.p{border-color:var(--accent);color:var(--accent);background:#00e5ff10}
+.btn.p:hover{background:#00e5ff20;box-shadow:0 0 10px #00e5ff44}
+.btn.d{border-color:var(--red);color:var(--red)}.btn.d:hover{background:#ff4d6d12}
+.bi{font-size:.95rem;width:18px;text-align:center}
+hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.s{background:#0d1525;border:1px solid var(--border);border-radius:4px;padding:9px 11px}
+.sl{font-size:.58rem;color:var(--dim);letter-spacing:.1em;margin-bottom:3px}
+.sv{font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--accent)}
+.sv.g{color:var(--green)}.sv.w{color:#ffb347}.sv.r{color:var(--red)}
+.gbox{background:#0d1525;border:1px solid var(--border);border-radius:4px;padding:12px;text-align:center;margin-bottom:10px}
+.gi{font-size:2rem;display:block;margin-bottom:3px;min-height:2.4rem}
+.gn{font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+.cs{font-size:.66rem;line-height:1.9;color:var(--dim)}
+.cs .r{display:flex;justify-content:space-between;border-bottom:1px solid #0e1a2e;padding:2px 0}
+.cs .r:last-child{border-bottom:none}
+.cs .k{color:var(--text)}
+.ql{padding:6px 12px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:.68rem;cursor:pointer;text-decoration:none;transition:all .2s;letter-spacing:.04em;display:inline-block}
+.ql:hover{border-color:var(--red);color:var(--red)}
+#notif{position:fixed;top:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.ni{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:4px;padding:9px 13px;font-size:.73rem;min-width:200px;animation:sin .2s ease,sout .4s ease 2.6s forwards}
+.ni.e{border-left-color:var(--red)}.ni.s{border-left-color:var(--green)}
+@keyframes sin{from{transform:translateX(28px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes sout{to{opacity:0;transform:translateX(10px)}}
+@media(max-width:780px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="notif"></div>
+<video id="vid" autoplay muted playsinline style="display:none"></video>
+
+<div class="w">
+  <header>
+    <div>
+      <span class="logo">GESTURE<em>MOUSE</em></span>
+      <span class="badge">v2.0</span>
+    </div>
+    <div class="conn">
+      <div class="dot" id="dot"></div>
+      <span id="connlbl">BACKEND OFFLINE</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="panel" style="margin-bottom:14px">
+        <div class="pt">◈ Live Feed + Tracking</div>
+        <div class="lbw"><div class="lb" id="lb"></div></div>
+        <div style="font-size:.65rem;color:var(--dim);margin-bottom:8px" id="loadtxt">Loading MediaPipe…</div>
+        <div class="vwrap">
+          <canvas id="canvas"></canvas>
+          <div class="vborder" id="vborder"></div>
+          <div class="hud">
+            <div class="chip">FPS <b id="hfps">--</b></div>
+            <div class="chip">✋ <b id="hhand">--</b></div>
+          </div>
+          <div class="omsg" id="omsg">
+            <span class="oi">⏳</span>
+            <span id="omsg-txt">Initialising…</span>
+          </div>
+        </div>
+        <div class="fpsbw"><div class="fpsb" id="fpsb" style="width:0%"></div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="panel">
+          <div class="pt">◈ Gesture Reference</div>
+          <div class="cs">
+            <div class="r"><span class="k">✋ Open palm</span><span>Move cursor</span></div>
+            <div class="r"><span class="k">☝️ Point</span><span>Move cursor</span></div>
+            <div class="r"><span class="k">👌 Pinch index+thumb</span><span>Left click</span></div>
+            <div class="r"><span class="k">🤏 Pinch middle+thumb</span><span>Right click</span></div>
+            <div class="r"><span class="k">✌️ Index + middle</span><span>Scroll</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="pt">◈ Navigate</div>
+          <a class="ql" href="http://localhost:5000/draw" target="_blank" style="margin-bottom:8px">✏️ Drawing Board</a>
+          <div class="pt" style="margin-top:14px">◈ System</div>
+          <div style="font-size:.66rem;color:var(--dim);line-height:1.8" id="sysinfo">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="pt">◈ Control</div>
+      <button class="btn p" id="startbtn" onclick="startTracking()"><span class="bi">▶</span> START TRACKING</button>
+      <button class="btn d" id="stopbtn"  onclick="stopTracking()"  style="display:none"><span class="bi">■</span> STOP TRACKING</button>
+
+      <hr>
+      <div class="pt">◈ Live Stats</div>
+      <div class="sg">
+        <div class="s"><div class="sl">FRAME RATE</div><div class="sv" id="sfps">--</div></div>
+        <div class="s"><div class="sl">HAND</div><div class="sv" id="shand">--</div></div>
+        <div class="s"><div class="sl">CURSOR X</div><div class="sv" id="scx">--</div></div>
+        <div class="s"><div class="sl">CURSOR Y</div><div class="sv" id="scy">--</div></div>
+      </div>
+
+      <hr>
+      <div class="pt">◈ Gesture</div>
+      <div class="gbox">
+        <span class="gi" id="gi">🖐</span>
+        <div class="gn" id="gn">WAITING…</div>
+      </div>
+
+      <hr>
+      <div class="pt" style="margin-bottom:6px">◈ Backend Info</div>
+      <div style="font-size:.64rem;color:var(--dim);line-height:1.7" id="backinfo">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "";
+const GMAP = {
+  open_palm:  {i:"✋",l:"MOVING CURSOR"},
+  point:      {i:"☝️",l:"POINTING"},
+  left_click: {i:"👌",l:"LEFT CLICK"},
+  right_click:{i:"🤏",l:"RIGHT CLICK"},
+  scroll:     {i:"✌️",l:"SCROLLING"},
+  fist:       {i:"✊",l:"FIST"},
+  idle:       {i:"🤚",l:"IDLE"},
+  none:       {i:"🖐",l:"NO HAND"},
+};
+
+const vid    = document.getElementById("vid");
+const canvas = document.getElementById("canvas");
+const ctx    = canvas.getContext("2d");
+
+function resizeCanvas(){
+  const p = canvas.parentElement;
+  canvas.width  = p.clientWidth  || 640;
+  canvas.height = p.clientHeight || 480;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+const TIPS = new Set([4,8,12,16,20]);
+
+let mpReady  = false;
+let tracking = false;
+let _fFrames = 0, _fLast = performance.now(), _fps = 0;
+let _lastPush = 0;
+const PUSH_MS = 16; // send to Python at ~60Hz — cursor doesn't need more
+
+function setLoad(p, t){
+  document.getElementById("lb").style.width = p+"%";
+  document.getElementById("loadtxt").textContent = t;
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s = document.createElement("script");
+    s.src=src; s.crossOrigin="anonymous";
+    s.onload=res; s.onerror=()=>rej(new Error("Failed: "+src));
+    document.head.appendChild(s);
+  });
+}
+
+async function initMP(){
+  try{
+    setLoad(10,"Loading hand model…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
+    setLoad(60,"Loading camera utils…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+    setLoad(78,"Opening camera…");
+
+    const hands = new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({maxNumHands:1, modelComplexity:0, minDetectionConfidence:0.65, minTrackingConfidence:0.55});
+    hands.onResults(onResults);
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:120,min:30},facingMode:"user"},
+      audio:false
+    });
+    vid.srcObject = stream;
+    await new Promise((res,rej)=>{
+      vid.onloadedmetadata = ()=>vid.play().then(res).catch(rej);
+      setTimeout(()=>rej(new Error("Camera timeout")),8000);
+    });
+
+    setLoad(94,"Starting 120fps loop…");
+
+    // requestVideoFrameCallback → fires on every GPU-decoded frame
+    async function tick(){
+      if(vid.readyState>=2) await hands.send({image:vid});
+      if("requestVideoFrameCallback" in vid)
+        vid.requestVideoFrameCallback(tick);
+      else
+        requestAnimationFrame(tick);
+    }
+    if("requestVideoFrameCallback" in vid) vid.requestVideoFrameCallback(tick);
+    else requestAnimationFrame(tick);
+
+    setLoad(100,"Ready ✓");
+    mpReady = true;
+    document.getElementById("omsg").style.display = "none";
+    document.getElementById("vborder").classList.add("on");
+    notify("✅ Hand tracking ready","s");
+
+  }catch(err){
+    console.error(err);
+    let m = err.message;
+    if(err.name==="NotAllowedError")  m="Camera permission denied — click the lock icon and allow";
+    if(err.name==="NotReadableError") m="Camera busy — close Teams/Zoom/OBS then refresh";
+    document.getElementById("omsg-txt").textContent = "❌ "+m;
+    setLoad(100,"❌ "+m);
+    notify("❌ "+m,"e");
+  }
+}
+
+function onResults(results){
+  _fFrames++;
+  const now = performance.now();
+  if(now-_fLast>=1000){
+    _fps=_fFrames; _fFrames=0; _fLast=now;
+    updateFPS(_fps);
+  }
+
+  const W=canvas.width, H=canvas.height;
+  ctx.save(); ctx.translate(W,0); ctx.scale(-1,1);
+  ctx.drawImage(vid,0,0,W,H);
+  ctx.restore();
+
+  if(results.multiHandLandmarks?.length>0){
+    const lm = results.multiHandLandmarks[0];
+    drawSkeleton(lm,W,H);
+    document.getElementById("hhand").textContent = "YES";
+    if(tracking && now-_lastPush>PUSH_MS){
+      _lastPush=now;
+      pushLM(lm);
+    }
+  } else {
+    document.getElementById("hhand").textContent = "NO";
+    if(tracking && now-_lastPush>300){
+      _lastPush=now;
+      fetch(API+"/api/landmarks",{method:"POST",headers:{"Content-Type":"application/json"},body:'{"landmarks":[],"fps":0}'}).catch(()=>{});
+    }
+  }
+}
+
+function pushLM(lm){
+  // Un-mirror X — Python needs real-world coords (not display-mirrored)
+  const pts = lm.map(p=>({x:1-p.x, y:p.y, z:p.z}));
+  fetch(API+"/api/landmarks",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({landmarks:pts, fps:_fps})
+  }).catch(()=>{});
+}
+
+function drawSkeleton(lm,W,H){
+  const px = i=>(1-lm[i].x)*W;
+  const py = i=>lm[i].y*H;
+
+  ctx.save();
+  ctx.strokeStyle="rgba(0,229,255,.65)"; ctx.lineWidth=2;
+  ctx.shadowBlur=7; ctx.shadowColor="#00e5ff";
+  ctx.beginPath();
+  for(const[a,b]of CONN){ctx.moveTo(px(a),py(a));ctx.lineTo(px(b),py(b));}
+  ctx.stroke(); ctx.shadowBlur=0;
+
+  for(let i=0;i<21;i++){
+    const isI=i===8, isT=TIPS.has(i);
+    ctx.beginPath();
+    ctx.arc(px(i),py(i),isI?8:isT?5:3,0,Math.PI*2);
+    ctx.fillStyle=isI?"#00ffff":isT?"#7fff6b":"rgba(0,200,255,.8)";
+    if(isI){ctx.shadowBlur=14;ctx.shadowColor="#00ffff";}
+    ctx.fill(); ctx.shadowBlur=0;
+  }
+  ctx.restore();
+}
+
+function updateFPS(f){
+  const c=f>=50?"g":f>=25?"w":"r";
+  document.getElementById("sfps").textContent=f+" fps";
+  document.getElementById("sfps").className="sv "+c;
+  document.getElementById("hfps").textContent=f;
+  document.getElementById("fpsb").style.width=Math.min(100,f/1.2)+"%";
+}
+
+async function api(path,method="POST",body=null){
+  try{
+    const r=await fetch(API+path,{method,headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+    return await r.json();
+  }catch{return null;}
+}
+
+function notify(msg,type=""){
+  const el=document.createElement("div");
+  el.className="ni "+type; el.textContent=msg;
+  document.getElementById("notif").appendChild(el);
+  setTimeout(()=>el.remove(),3100);
+}
+
+function setConn(on){
+  document.getElementById("dot").className="dot"+(on?" on":"");
+  document.getElementById("connlbl").textContent=on?"BACKEND ONLINE":"BACKEND OFFLINE";
+}
+
+async function startTracking(){
+  if(!mpReady){notify("⏳ MediaPipe still loading","e");return;}
+  const r=await api("/api/start");
+  if(!r){notify("❌ Backend offline — run gesture_mouse.py","e");return;}
+  tracking=true;
+  document.getElementById("startbtn").style.display="none";
+  document.getElementById("stopbtn").style.display="block";
+  notify("✅ Tracking started","s");
+}
+
+async function stopTracking(){
+  tracking=false;
+  await api("/api/stop");
+  document.getElementById("startbtn").style.display="block";
+  document.getElementById("stopbtn").style.display="none";
+  setConn(false);
+  notify("⏹ Tracking stopped");
+}
+
+let _pollT=null;
+async function poll(){
+  clearTimeout(_pollT);
+  const s=await api("/api/status","GET");
+  if(s){
+    setConn(true);
+    const g=GMAP[s.gesture]||{i:"🤚",l:(s.gesture||"--").toUpperCase()};
+    document.getElementById("gi").textContent=g.i;
+    document.getElementById("gn").textContent=g.l;
+    document.getElementById("shand").textContent=s.hand_visible?"YES":"NO";
+    document.getElementById("shand").className="sv "+(s.hand_visible?"g":"r");
+    document.getElementById("scx").textContent=s.cursor?.x??"--";
+    document.getElementById("scy").textContent=s.cursor?.y??"--";
+    document.getElementById("backinfo").innerHTML=`Screen: ${s.screen?.w}×${s.screen?.h}<br>Win32: ${s.win32}<br>API: localhost:5000`;
+    document.getElementById("sysinfo").innerHTML=`Screen: ${s.screen?.w}×${s.screen?.h}<br>FPS: ${s.fps}`;
+  }else setConn(false);
+  _pollT=setTimeout(poll,500);
+}
+
+initMP();
+poll();
+</script>
+</body>
+</html>

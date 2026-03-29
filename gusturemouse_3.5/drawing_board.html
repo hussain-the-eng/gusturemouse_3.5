@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GestureMouse 2.0 — Drawing Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050810;--panel:#0a0f1e;--border:#1a2a4a;--accent:#00e5ff;--red:#ff4d6d;--green:#7fff6b;--orange:#ffaa00;--text:#c8d8f0;--dim:#4a6080}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:var(--text);font-family:'Share Tech Mono',monospace;height:100vh;overflow:hidden}
+
+/* full-screen canvas stack */
+#cam-canvas  {position:fixed;inset:0;width:100%;height:100%}
+#draw-canvas {position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#ui-canvas   {position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+
+/* UI overlay */
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10}
+
+/* top bar */
+#topbar{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;
+  background:linear-gradient(180deg,rgba(5,8,16,.9),transparent);
+  pointer-events:all;
+}
+.logo{font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:900;color:var(--accent);letter-spacing:.08em;text-shadow:0 0 10px #00e5ff55}
+.logo em{color:var(--red);font-style:normal}
+
+/* toolbar */
+#toolbar{
+  position:absolute;top:60px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;
+  background:rgba(10,15,30,.88);border:1px solid var(--border);
+  border-radius:30px;padding:8px 16px;
+  pointer-events:all;
+  backdrop-filter:blur(8px);
+}
+.tbtn{
+  padding:6px 14px;border:1px solid var(--border);border-radius:20px;
+  background:transparent;color:var(--dim);
+  font-family:'Share Tech Mono',monospace;font-size:.68rem;
+  cursor:pointer;transition:all .2s;letter-spacing:.05em;
+  white-space:nowrap;
+}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.tbtn.active{border-color:var(--green);color:var(--green);background:#7fff6b12}
+.sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+#color-row{display:flex;gap:6px;align-items:center}
+.col{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s;flex-shrink:0}
+.col:hover{transform:scale(1.2)}
+.col.active{border-color:#fff;box-shadow:0 0 8px currentColor}
+#size-slider{width:80px;accent-color:var(--accent);cursor:pointer}
+
+/* gesture HUD — bottom centre */
+#ghud{
+  position:absolute;bottom:60px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  pointer-events:none;
+}
+#gicon{font-size:2.4rem;text-shadow:0 0 12px #00e5ffaa}
+#glabel{font-family:'Orbitron',sans-serif;font-size:.65rem;letter-spacing:.16em;color:rgba(255,255,255,.55)}
+
+/* status strip */
+#strip{
+  position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+  display:flex;gap:18px;
+  background:rgba(0,0,0,.6);border:1px solid var(--border);
+  border-radius:20px;padding:6px 18px;font-size:.62rem;color:#555;
+  pointer-events:none;letter-spacing:.06em;
+}
+#strip span{color:var(--accent)}
+
+/* loading overlay */
+#loading{
+  position:fixed;inset:0;background:#000;z-index:100;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  transition:opacity .7s;
+}
+.load-logo{font-family:'Orbitron',sans-serif;font-size:1.6rem;font-weight:900;color:var(--accent);text-shadow:0 0 20px #00e5ff}
+.load-logo em{color:var(--red);font-style:normal}
+.load-sub{font-size:.72rem;color:var(--dim);letter-spacing:.12em}
+.lbw{width:220px;height:3px;background:#111;border-radius:2px;overflow:hidden}
+.lb{height:100%;width:0%;background:linear-gradient(90deg,var(--red),var(--accent));transition:width .3s;border-radius:2px}
+
+/* notif */
+#notif{position:fixed;top:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.ni{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:4px;padding:9px 13px;font-size:.73rem;min-width:200px;animation:sin .2s ease,sout .4s ease 2.6s forwards}
+.ni.e{border-left-color:var(--red)}.ni.s{border-left-color:var(--green)}
+@keyframes sin{from{transform:translateX(28px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes sout{to{opacity:0;transform:translateX(10px)}}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="load-logo">GESTURE<em>MOUSE</em></div>
+  <div class="load-sub" id="load-txt">Loading hand tracking…</div>
+  <div class="lbw"><div class="lb" id="lb"></div></div>
+</div>
+
+<div id="notif"></div>
+
+<canvas id="cam-canvas"></canvas>
+<canvas id="draw-canvas"></canvas>
+<canvas id="ui-canvas"></canvas>
+
+<div id="ui">
+  <div id="topbar">
+    <div class="logo">✏️ GESTURE<em>DRAW</em></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="http://localhost:5000" style="padding:5px 12px;border:1px solid var(--border);border-radius:4px;color:var(--dim);text-decoration:none;font-size:.68rem;font-family:'Share Tech Mono',monospace;transition:all .2s" onmouseover="this.style.borderColor='#fff';this.style.color='#fff'" onmouseout="this.style.borderColor='';this.style.color=''">← LAUNCHER</a>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <!-- Pen / Erase indicator -->
+    <span style="font-size:.65rem;color:var(--dim);letter-spacing:.08em">PEN</span>
+    <div class="sep"></div>
+
+    <!-- Colours -->
+    <div id="color-row">
+      <div class="col active" data-color="#00e5ff" style="background:#00e5ff" onclick="setColor('#00e5ff',this)" title="Cyan"></div>
+      <div class="col" data-color="#ff4d6d"  style="background:#ff4d6d"  onclick="setColor('#ff4d6d',this)"  title="Red"></div>
+      <div class="col" data-color="#7fff6b"  style="background:#7fff6b"  onclick="setColor('#7fff6b',this)"  title="Green"></div>
+      <div class="col" data-color="#ffaa00"  style="background:#ffaa00"  onclick="setColor('#ffaa00',this)"  title="Orange"></div>
+      <div class="col" data-color="#ffffff"  style="background:#fff"      onclick="setColor('#ffffff',this)"  title="White"></div>
+      <div class="col" data-color="#cc44ff"  style="background:#cc44ff"  onclick="setColor('#cc44ff',this)"  title="Purple"></div>
+    </div>
+    <div class="sep"></div>
+
+    <!-- Brush size -->
+    <span style="font-size:.6rem;color:var(--dim)">SIZE</span>
+    <input type="range" id="size-slider" min="2" max="30" value="5" oninput="setBrushSize(this.value)">
+    <span style="font-size:.65rem;color:var(--accent);width:24px" id="size-lbl">5</span>
+    <div class="sep"></div>
+
+    <!-- Actions -->
+    <button class="tbtn" onclick="undo()" title="Ctrl+Z">↩ UNDO</button>
+    <button class="tbtn" onclick="clearBoard()" title="Clear all">🗑 CLEAR</button>
+    <button class="tbtn" onclick="saveDrawing()" title="Save PNG">💾 SAVE</button>
+  </div>
+
+  <!-- Gesture HUD -->
+  <div id="ghud">
+    <div id="gicon">🖐</div>
+    <div id="glabel">SHOW YOUR HAND</div>
+  </div>
+
+  <!-- Status strip -->
+  <div id="strip">
+    FPS <span id="sfps">--</span>
+    &nbsp;|&nbsp; HAND <span id="shand">--</span>
+    &nbsp;|&nbsp; MODE <span id="smode">LIFT</span>
+    &nbsp;|&nbsp; STROKES <span id="sstrokes">0</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CANVAS SETUP
+// ═══════════════════════════════════════════════════════════════════
+const camCanvas  = document.getElementById("cam-canvas");
+const drawCanvas = document.getElementById("draw-canvas");
+const uiCanvas   = document.getElementById("ui-canvas");
+const camCtx     = camCanvas.getContext("2d");
+const drawCtx    = drawCanvas.getContext("2d");
+const uiCtx      = uiCanvas.getContext("2d");
+const vid        = document.createElement("video");
+vid.autoplay = true; vid.muted = true; vid.playsInline = true;
+
+let W, H;
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  [camCanvas, drawCanvas, uiCanvas].forEach(c => { c.width=W; c.height=H; });
+}
+resize();
+window.addEventListener("resize", resize);
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAWING STATE
+// ═══════════════════════════════════════════════════════════════════
+let penColor   = "#00e5ff";
+let brushSize  = 5;
+let penDown    = false;
+let eraseMode  = false;
+let strokes    = [];       // array of {color,size,points[]}
+let currentStroke = null;
+// Persistent draw layer stored as ImageData so undo works per-stroke
+let undoStack  = [];       // array of ImageData snapshots
+const MAX_UNDO = 30;
+
+function pushUndo(){
+  undoStack.push(drawCtx.getImageData(0,0,W,H));
+  if(undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function undo(){
+  if(undoStack.length === 0){ notify("Nothing to undo",""); return; }
+  drawCtx.putImageData(undoStack.pop(),0,0);
+  if(strokes.length) strokes.pop();
+  document.getElementById("sstrokes").textContent = strokes.length;
+  notify("↩ Undone","s");
+}
+
+function clearBoard(){
+  pushUndo();
+  drawCtx.clearRect(0,0,W,H);
+  strokes = [];
+  document.getElementById("sstrokes").textContent = 0;
+  notify("🗑 Canvas cleared");
+}
+
+function saveDrawing(){
+  // Composite: webcam frame + drawing
+  const tmp = document.createElement("canvas");
+  tmp.width=W; tmp.height=H;
+  const tc = tmp.getContext("2d");
+  tc.drawImage(camCanvas,0,0);
+  tc.drawImage(drawCanvas,0,0);
+  const a = document.createElement("a");
+  a.download = "gesture_drawing_"+Date.now()+".png";
+  a.href = tmp.toDataURL("image/png");
+  a.click();
+  notify("💾 Saved!","s");
+}
+
+function setColor(c, el){
+  penColor = c; eraseMode = false;
+  document.querySelectorAll(".col").forEach(d=>d.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("smode").textContent = "DRAW";
+  document.getElementById("smode").style.color = c;
+}
+
+function setBrushSize(v){
+  brushSize = parseInt(v);
+  document.getElementById("size-lbl").textContent = v;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MEDIAPIPE + CAMERA
+// ═══════════════════════════════════════════════════════════════════
+let mpReady = false;
+let handVisible = false;
+let _fFrames=0, _fLast=performance.now(), _fps=0;
+
+function setLoad(p,t){
+  document.getElementById("lb").style.width=p+"%";
+  document.getElementById("load-txt").textContent=t;
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s=document.createElement("script");
+    s.src=src; s.crossOrigin="anonymous";
+    s.onload=res; s.onerror=()=>rej(new Error("Failed: "+src));
+    document.head.appendChild(s);
+  });
+}
+
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+const TIPS=new Set([4,8,12,16,20]);
+
+async function initMP(){
+  try{
+    setLoad(10,"Loading hand model…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
+    setLoad(60,"Loading camera utils…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+    setLoad(78,"Opening camera…");
+
+    const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.65,minTrackingConfidence:0.55});
+    hands.onResults(onResults);
+
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:120,min:30},facingMode:"user"},
+      audio:false
+    });
+    vid.srcObject=stream;
+    await new Promise((res,rej)=>{
+      vid.onloadedmetadata=()=>vid.play().then(res).catch(rej);
+      setTimeout(()=>rej(new Error("Camera timeout")),8000);
+    });
+
+    setLoad(94,"Starting 120fps loop…");
+
+    async function tick(){
+      if(vid.readyState>=2) await hands.send({image:vid});
+      if("requestVideoFrameCallback" in vid)
+        vid.requestVideoFrameCallback(tick);
+      else
+        requestAnimationFrame(tick);
+    }
+    if("requestVideoFrameCallback" in vid) vid.requestVideoFrameCallback(tick);
+    else requestAnimationFrame(tick);
+
+    setLoad(100,"Ready!");
+    mpReady=true;
+
+    // Fade out loading screen
+    const el=document.getElementById("loading");
+    el.style.opacity="0";
+    setTimeout(()=>el.remove(),800);
+
+    // Start render loop
+    requestAnimationFrame(renderLoop);
+    notify("✅ Drawing board ready — pinch to draw!","s");
+
+  }catch(err){
+    console.error(err);
+    let m=err.message;
+    if(err.name==="NotAllowedError")  m="Camera permission denied — allow in address bar";
+    if(err.name==="NotReadableError") m="Camera busy — close Teams/Zoom/OBS and refresh";
+    document.getElementById("load-txt").textContent="❌ "+m;
+    notify("❌ "+m,"e");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GESTURE LOGIC
+// ═══════════════════════════════════════════════════════════════════
+function pinch(lm,a,b){
+  return Math.hypot(lm[a].x-lm[b].x, lm[a].y-lm[b].y);
+}
+function up(lm,tip,pip){return lm[tip].y<lm[pip].y;}
+
+function classifyDraw(lm){
+  const iUp=up(lm,8,6), mUp=up(lm,12,10), rUp=up(lm,16,14), pUp=up(lm,20,18);
+  const pl=pinch(lm,4,8);
+  const THRESH=0.06;
+
+  // Fist (all down) → erase
+  if(!iUp&&!mUp&&!rUp&&!pUp) return "fist";
+  // Pinch index+thumb → draw (pen down)
+  if(pl<THRESH) return "draw";
+  // Anything with index up → lift pen (move)
+  return "lift";
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MEDIAPIPE RESULTS
+// ═══════════════════════════════════════════════════════════════════
+let prevPt = null;   // last draw point for smooth lines
+
+const GMAP_DRAW={
+  draw:  {i:"✏️",l:"DRAWING"},
+  lift:  {i:"🖐",l:"PEN UP — MOVE"},
+  fist:  {i:"✊",l:"ERASING"},
+};
+
+function onResults(results){
+  _fFrames++;
+  const now=performance.now();
+  if(now-_fLast>=1000){
+    _fps=_fFrames; _fFrames=0; _fLast=now;
+    document.getElementById("sfps").textContent=_fps;
+  }
+
+  if(results.multiHandLandmarks?.length>0){
+    const lm=results.multiHandLandmarks[0];
+    handVisible=true;
+    document.getElementById("shand").textContent="YES";
+
+    const gesture=classifyDraw(lm);
+    const gd=GMAP_DRAW[gesture]||{i:"🤚",l:"IDLE"};
+    document.getElementById("gicon").textContent=gd.i;
+    document.getElementById("glabel").textContent=gd.l;
+    document.getElementById("smode").textContent=gesture.toUpperCase();
+
+    // Index fingertip position in canvas coords (mirrored display)
+    const ix=(1-lm[8].x)*W;
+    const iy=lm[8].y*H;
+
+    if(gesture==="fist"){
+      // ERASE — rubber area around index
+      penDown=false; prevPt=null;
+      if(currentStroke){ pushUndo(); strokes.push(currentStroke); currentStroke=null; }
+      const er=40+brushSize*2;
+      drawCtx.save();
+      drawCtx.globalCompositeOperation="destination-out";
+      drawCtx.beginPath();
+      drawCtx.arc(ix,iy,er,0,Math.PI*2);
+      drawCtx.fill();
+      drawCtx.restore();
+      document.getElementById("sstrokes").textContent=strokes.length;
+
+    } else if(gesture==="draw"){
+      // PEN DOWN — draw stroke
+      if(!penDown){
+        // Start of new stroke
+        pushUndo();
+        currentStroke={color:penColor,size:brushSize,points:[[ix,iy]]};
+        penDown=true; prevPt=[ix,iy];
+      } else if(prevPt){
+        // Continue stroke — smooth bezier
+        const [px,py]=prevPt;
+        drawCtx.save();
+        drawCtx.strokeStyle=penColor;
+        drawCtx.lineWidth=brushSize;
+        drawCtx.lineCap="round";
+        drawCtx.lineJoin="round";
+        drawCtx.shadowBlur=brushSize>8?6:0;
+        drawCtx.shadowColor=penColor;
+        drawCtx.beginPath();
+        drawCtx.moveTo(px,py);
+        drawCtx.lineTo(ix,iy);
+        drawCtx.stroke();
+        drawCtx.restore();
+        currentStroke.points.push([ix,iy]);
+        prevPt=[ix,iy];
+      }
+
+    } else {
+      // LIFT — end stroke
+      if(penDown && currentStroke){
+        strokes.push(currentStroke);
+        currentStroke=null;
+        document.getElementById("sstrokes").textContent=strokes.length;
+      }
+      penDown=false; prevPt=null;
+    }
+
+  } else {
+    handVisible=false;
+    document.getElementById("shand").textContent="NO";
+    document.getElementById("gicon").textContent="🖐";
+    document.getElementById("glabel").textContent="SHOW YOUR HAND";
+    if(penDown && currentStroke){
+      strokes.push(currentStroke);
+      currentStroke=null;
+    }
+    penDown=false; prevPt=null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDER LOOP — draw webcam + UI chrome onto canvases
+// ═══════════════════════════════════════════════════════════════════
+function renderLoop(){
+  requestAnimationFrame(renderLoop);
+
+  // ── Cam canvas: mirrored webcam ──
+  if(vid.readyState>=2 && vid.videoWidth>0){
+    camCtx.save();
+    camCtx.translate(W,0); camCtx.scale(-1,1);
+    camCtx.drawImage(vid,0,0,W,H);
+    camCtx.restore();
+    // Slight darkening so drawing is visible
+    camCtx.fillStyle="rgba(0,0,0,0.25)";
+    camCtx.fillRect(0,0,W,H);
+  } else {
+    camCtx.fillStyle="#060810";
+    camCtx.fillRect(0,0,W,H);
+  }
+
+  // ── UI canvas: cursor dot + erase circle ──
+  uiCtx.clearRect(0,0,W,H);
+  // (Actual cursor dot drawn per-hand in drawCursor)
+}
+
+// Draw a cursor dot on the UI canvas (called on every MP result)
+function drawCursorDot(x,y,gesture){
+  const color = gesture==="draw" ? penColor : gesture==="fist" ? "#ff4d6d" : "rgba(255,255,255,.7)";
+  const size  = gesture==="fist" ? 40+brushSize*2 : brushSize/2+4;
+
+  uiCtx.clearRect(0,0,W,H);
+  uiCtx.save();
+  if(gesture==="fist"){
+    // Show erase area
+    uiCtx.strokeStyle="rgba(255,77,109,.7)";
+    uiCtx.lineWidth=2;
+    uiCtx.setLineDash([5,4]);
+    uiCtx.beginPath(); uiCtx.arc(x,y,size,0,Math.PI*2); uiCtx.stroke();
+    uiCtx.setLineDash([]);
+  } else {
+    // Normal cursor dot
+    uiCtx.fillStyle=color;
+    uiCtx.shadowBlur=12; uiCtx.shadowColor=color;
+    uiCtx.beginPath(); uiCtx.arc(x,y,size,0,Math.PI*2); uiCtx.fill();
+    uiCtx.shadowBlur=0;
+
+    if(gesture==="draw"){
+      // Draw ring showing brush size
+      uiCtx.strokeStyle=color+"99";
+      uiCtx.lineWidth=1.5;
+      uiCtx.beginPath(); uiCtx.arc(x,y,brushSize/2,0,Math.PI*2); uiCtx.stroke();
+    }
+  }
+  uiCtx.restore();
+}
+
+// Patch onResults to also draw cursor
+const _origOnResults = onResults;
+window._onResultsWithCursor = function(results){
+  _origOnResults(results);
+  if(results.multiHandLandmarks?.length>0){
+    const lm=results.multiHandLandmarks[0];
+    const gesture=classifyDraw(lm);
+    const ix=(1-lm[8].x)*W;
+    const iy=lm[8].y*H;
+    drawCursorDot(ix,iy,gesture);
+  } else {
+    uiCtx.clearRect(0,0,W,H);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════════════
+function notify(msg,type=""){
+  const el=document.createElement("div");
+  el.className="ni "+type; el.textContent=msg;
+  document.getElementById("notif").appendChild(el);
+  setTimeout(()=>el.remove(),3100);
+}
+
+// Keyboard shortcuts
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==="z"){ undo(); e.preventDefault(); }
+  if((e.ctrlKey||e.metaKey)&&e.key==="s"){ saveDrawing(); e.preventDefault(); }
+  if(e.key==="Delete"||e.key==="Backspace") clearBoard();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+
+// Re-init MP with cursor patching
+async function initWithCursor(){
+  try{
+    setLoad(10,"Loading hand model…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
+    setLoad(60,"Loading camera utils…");
+    await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+    setLoad(78,"Opening camera…");
+
+    const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.65,minTrackingConfidence:0.55});
+    // Use cursor-patched version
+    hands.onResults(window._onResultsWithCursor);
+
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:120,min:30},facingMode:"user"},
+      audio:false
+    });
+    vid.srcObject=stream;
+    await new Promise((res,rej)=>{
+      vid.onloadedmetadata=()=>vid.play().then(res).catch(rej);
+      setTimeout(()=>rej(new Error("Camera timeout")),8000);
+    });
+
+    setLoad(94,"Starting 120fps loop…");
+
+    async function tick(){
+      if(vid.readyState>=2) await hands.send({image:vid});
+      if("requestVideoFrameCallback" in vid)
+        vid.requestVideoFrameCallback(tick);
+      else
+        requestAnimationFrame(tick);
+    }
+    if("requestVideoFrameCallback" in vid) vid.requestVideoFrameCallback(tick);
+    else requestAnimationFrame(tick);
+
+    setLoad(100,"Ready!");
+    mpReady=true;
+
+    const el=document.getElementById("loading");
+    el.style.opacity="0";
+    setTimeout(()=>el.remove(),800);
+
+    requestAnimationFrame(renderLoop);
+    notify("✅ Drawing board ready — pinch to draw!","s");
+
+  }catch(err){
+    console.error(err);
+    let m=err.message;
+    if(err.name==="NotAllowedError")  m="Camera permission denied";
+    if(err.name==="NotReadableError") m="Camera busy — close Teams/Zoom/OBS";
+    document.getElementById("load-txt").textContent="❌ "+m;
+    notify("❌ "+m,"e");
+  }
+}
+
+initWithCursor();
+</script>
+</body>
+</html>
